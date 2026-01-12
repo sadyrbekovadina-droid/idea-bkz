@@ -118,11 +118,12 @@ if st.button("📨 Отправить ответы"):
             "score": score
         }
 
-        url = "https://script.google.com/macros/s/AKfycbzP6BWsOot6hoZm5YI7UZPks7unAlpZ8w7IJ_gLSYL8ktRrm1IwxpM9CRxgghS-8cPJ/exec"
+        url = "https://script.google.com/macros/s/AKfycbxI233LLqpJV1AhaeYZsnihmsp3i_OyGGHZDUvGKzcz-Q7DRSL7zvlYDBRpdUmCaQes/exec"
 
         try:
             requests.post(url, json=data)
             st.info("Ответы сохранены и отправлены учителю")
         except:
             st.warning("Ответы показаны, но не отправлены в таблицу")
+
 
