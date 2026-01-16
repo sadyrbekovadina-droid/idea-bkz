@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 
 # ВАЖНО: сюда вставь свою рабочую ссылку Google Apps Script /exec
-SCRIPT_URL =https://script.google.com/macros/s/AKfycbxI233LLqpJV1AhaeYZsnihmsp3i_OyGGHZDUvGKzcz-Q7DRSL7zvlYDBRpdUmCaQes/exec 
+SCRIPT_URL ="https://script.google.com/macros/s/AKfycbxI233LLqpJV1AhaeYZsnihmsp3i_OyGGHZDUvGKzcz-Q7DRSL7zvlYDBRpdUmCaQes/exec" 
 
 st.set_page_config(page_title="Idea.bkz", layout="centered")
 
@@ -96,4 +96,5 @@ if st.button("📨 Отправить ответы"):
     except Exception as e:
         st.warning("Ответ показан, но не удалось отправить в таблицу (проверь интернет/ссылку Script).")
         st.text(str(e))
+
 
