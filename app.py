@@ -3,14 +3,33 @@ import requests
 import streamlit as st
 from urllib.parse import urlencode
 
+# ---------------- НАСТРОЙКИ ----------------
 SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxI233LLqpJV1AhaeYZsnihmsp3i_OyGGHZDUvGKzcz-Q7DRSL7zvlYDBRpdUmCaQes/exec"
 
-# 🔐 ПИН учителя (поменяй на свой)
-TEACHER_PIN = "5771"
+# ПИН учителя (можете поменять)
+TEACHER_PIN = "2580"
 
 st.set_page_config(page_title="Idea.bkz", layout="centered")
 
-# ---------- Вспомогательные функции ----------
+# ---------------- УТИЛИТЫ ----------------
+def _get_param(name: str, default: str) -> str:
+    """Надёжно читаем query params (role/mode)."""
+    try:
+        v = st.query_params.get(name, default)
+        if isinstance(v, list):
+            v = v[0]
+        v = (v or default).strip().lower()
+        return v
+    except Exception:
+        return default
+
+role = _get_param("role", "student")   # student / teacher
+mode = _get_param("mode", "test")      # test / open
+if role not in ["student", "teacher"]:
+    role = "student"
+if mode not in ["test", "open"]:
+    mode = "test"
+
 def normalize(text: str) -> str:
     text = (text or "").lower().strip()
     text = re.sub(r"\s+", " ", text)
@@ -18,14 +37,14 @@ def normalize(text: str) -> str:
 
 def comment_by_score(score: int) -> str:
     if score >= 9:
-        return "Отлично! Тема усвоена. Можно переходить к более сложным заданиям."
+        return "Отлично! Тема усвоена. Можно переходить к заданиям повышенной сложности."
     if score >= 7:
         return "Хорошо. Есть небольшие пробелы — повтори термины и 1–2 вопроса."
     if score >= 5:
-        return "Средний результат. Повтори тему и попробуй ещё раз после повторения."
-    return "Низкий результат. Рекомендую повторить тему по конспекту и задать вопросы учителю."
+        return "Средний результат. Повтори тему по конспекту и попробуй ещё раз."
+    return "Низкий результат. Рекомендую повторить тему и выполнить тренировочные задания."
 
-def send_submit(payload: dict) -> tuple[bool, str]:
+def post_json(payload: dict) -> tuple[bool, str]:
     try:
         r = requests.post(SCRIPT_URL, json=payload, timeout=20)
         if r.status_code != 200:
@@ -37,19 +56,17 @@ def send_submit(payload: dict) -> tuple[bool, str]:
     except Exception as e:
         return False, str(e)
 
-def get_teacher_comment(name: str, klass: str, section: str) -> tuple[bool, dict]:
+def get_json(params: dict) -> tuple[bool, dict]:
     try:
-        params = {"action": "get_teacher_comment", "name": name, "klass": klass, "section": section}
         url = f"{SCRIPT_URL}?{urlencode(params)}"
         r = requests.get(url, timeout=20)
         if r.status_code != 200:
             return False, {"error": f"HTTP {r.status_code}"}
-        js = r.json()
-        return True, js
+        return True, r.json()
     except Exception as e:
         return False, {"error": str(e)}
 
-# ---------- Данные заданий ----------
+# ---------------- ДАННЫЕ ЗАДАНИЙ ----------------
 TEST_TOPIC = "Выделение (7 класс)"
 TEST_QUESTIONS = [
     ("Главный орган выделения у человека:", ["Почки", "Печень", "Лёгкие"], "Почки"),
@@ -78,52 +95,58 @@ OPEN_QUESTIONS = [
     "10) Назови 3 правила сохранения здоровья нервной системы."
 ]
 
-# Очень простая автооценка открытых: 1 балл, если есть ключевые слова/корни
+# Простая автооценка открытых по ключевым словам (1 балл за вопрос, максимум 10)
 OPEN_KEYWORDS = [
     ["система", "регуля", "управ", "координац"],
-    ["регуля", "координац", "связ", "реакц"],
+    ["регуля", "координац", "связ", "реакц", "управ"],
     ["головн", "спинн"],
-    ["нерв", "гангли", "узел"],
-    ["нейрон", "клетк", "импульс"],
+    ["нерв", "гангли", "узел", "нервные волокна"],
+    ["нейрон", "клетк", "импульс", "передач"],
     ["рефлекс", "ответ", "раздраж"],
     ["условн", "безуслов"],
     ["синапс", "контакт", "передач"],
     ["спинн", "рефлекс", "провод"],
-    ["сон", "стресс", "режим", "пит", "нагруз"]
+    ["сон", "стресс", "режим", "пит", "нагруз", "отдых"],
 ]
 
-# ---------- UI ----------
+# ---------------- UI: ШАПКА ----------------
 st.title("Idea.bkz")
-st.subheader("Платформа обратной связи (7 класс)")
+st.caption("Платформа заданий и обратной связи (7 класс)")
 
-# Переключение разделов кнопками
-if "section" not in st.session_state:
-    st.session_state.section = "test"
+# Если вы учитель — покажем подсказку ссылок (ученику это не показываем)
+if role == "teacher":
+    st.info(
+        "Режим учителя включён.\n\n"
+        "Ссылки:\n"
+        "- Ученикам (тест): ?role=student&mode=test\n"
+        "- Ученикам (открытые): ?role=student&mode=open\n"
+        "- Учителю (панель): ?role=teacher&mode=test (или open)"
+    )
 
+# Навигация по разделам (видна всем, без лишнего)
 c1, c2 = st.columns(2)
 with c1:
-    if st.button("Открыть ТЕСТ"):
-        st.session_state.section = "test"
+    st.link_button("Открыть ТЕСТ", f"?role={role}&mode=test")
 with c2:
-    if st.button("Открыть ОТКРЫТЫЕ ВОПРОСЫ"):
-        st.session_state.section = "open"
+    st.link_button("Открыть ОТКРЫТЫЕ ВОПРОСЫ", f"?role={role}&mode=open")
 
 st.divider()
 
-st.header("Данные ученика")
-name = st.text_input("ФИО ученика")
-klass = st.text_input("Класс (например: 7А)")
+# ---------------- ДАННЫЕ УЧЕНИКА ----------------
+st.subheader("Данные ученика")
+name = st.text_input("ФИО ученика", placeholder="Например: Иванов Иван")
+klass = st.text_input("Класс (например: 7А)", placeholder="Например: 7А")
 
 st.divider()
 
-# ---------- Блок: ученик смотрит комментарий учителя ----------
-st.subheader("📩 Комментарий учителя (для ученика)")
-st.caption("Заполни ФИО и класс → нажми кнопку. Комментарий появится, когда учитель его сохранит.")
+# ---------------- БЛОК: ПОКАЗАТЬ КОММЕНТАРИЙ УЧИТЕЛЯ (виден ученику и учителю) ----------------
+st.subheader("Комментарий учителя (если он добавлен)")
+st.caption("Заполни ФИО и класс → нажми кнопку. Если учитель уже написал комментарий — он появится.")
 if st.button("Показать комментарий учителя"):
     if not name.strip() or not klass.strip():
         st.error("Заполни ФИО и класс.")
     else:
-        ok, js = get_teacher_comment(name.strip(), klass.strip(), st.session_state.section)
+        ok, js = get_json({"action": "get_teacher_comment", "name": name.strip(), "klass": klass.strip(), "section": mode})
         if not ok:
             st.warning(f"Не удалось получить комментарий: {js.get('error')}")
         else:
@@ -141,38 +164,41 @@ if st.button("Показать комментарий учителя"):
                 if teacher_comment:
                     st.success(f"**Комментарий учителя:** {teacher_comment}")
                 else:
-                    st.info("Учитель ещё не добавил комментарий.")
+                    st.info("Комментарий учителя ещё не добавлен.")
 
 st.divider()
 
-# ---------- Блок: учитель добавляет ручной комментарий ----------
-st.subheader("🔐 Панель учителя: добавить комментарий")
-pin = st.text_input("PIN учителя", type="password", placeholder="Введите PIN")
-teacher_comment_text = st.text_area("Комментарий учителя (что улучшить, что повторить, похвалить)", height=90)
+# ---------------- ПАНЕЛЬ УЧИТЕЛЯ (видна ТОЛЬКО учителю) ----------------
+if role == "teacher":
+    st.subheader("🔐 Панель учителя: добавить/обновить комментарий")
+    st.caption("Комментарий сохранится в Google Таблице и станет виден ученику по ФИО+классу и текущему разделу.")
 
-if st.button("Сохранить комментарий учителя"):
-    if pin != TEACHER_PIN:
-        st.error("Неверный PIN.")
-    elif not name.strip() or not klass.strip():
-        st.error("Нужно заполнить ФИО и класс ученика.")
-    else:
-        payload = {
-            "action": "save_teacher_comment",
-            "name": name.strip(),
-            "klass": klass.strip(),
-            "section": st.session_state.section,
-            "teacher_comment": teacher_comment_text.strip()
-        }
-        ok, msg = send_submit(payload)
-        if ok:
-            st.success("Комментарий учителя сохранён в таблице.")
+    pin = st.text_input("PIN учителя", type="password", placeholder="Введите PIN")
+    teacher_comment_text = st.text_area("Комментарий учителя", height=100, placeholder="Например: Хорошо, но повтори рефлекс и строение нейрона.")
+
+    if st.button("Сохранить комментарий учителя"):
+        if pin != TEACHER_PIN:
+            st.error("Неверный PIN.")
+        elif not name.strip() or not klass.strip():
+            st.error("Нужно заполнить ФИО и класс ученика.")
         else:
-            st.warning(f"Не удалось сохранить: {msg}")
+            payload = {
+                "action": "save_teacher_comment",
+                "name": name.strip(),
+                "klass": klass.strip(),
+                "section": mode,  # сохраняем комментарий именно для test или open
+                "teacher_comment": teacher_comment_text.strip(),
+            }
+            ok, msg = post_json(payload)
+            if ok:
+                st.success("Комментарий учителя сохранён.")
+            else:
+                st.warning(f"Не удалось сохранить: {msg}")
 
-st.divider()
+    st.divider()
 
-# ---------- Раздел: ТЕСТ ----------
-if st.session_state.section == "test":
+# ---------------- РАЗДЕЛ: ТЕСТ ----------------
+if mode == "test":
     st.header("🟦 Раздел: ТЕСТ")
     st.caption(f"Тема: {TEST_TOPIC} | 10 вопросов = 10 баллов")
 
@@ -184,34 +210,33 @@ if st.session_state.section == "test":
     if st.button("✅ Отправить ответы (ТЕСТ)"):
         if not name.strip() or not klass.strip():
             st.error("Заполни ФИО и класс.")
-            st.stop()
-
-        score = 0
-        for i, (_, _, correct) in enumerate(TEST_QUESTIONS, start=1):
-            if answers[f"q{i}"] == correct:
-                score += 1
-
-        auto_comment = comment_by_score(score)
-
-        payload = {
-            "action": "submit",
-            "name": name.strip(),
-            "klass": klass.strip(),
-            "section": "test",
-            "topic": TEST_TOPIC,
-            "score": score,
-            "auto_comment": auto_comment,
-            **answers
-        }
-
-        ok, msg = send_submit(payload)
-        if ok:
-            st.success(f"Готово! Балл: {score}/10")
-            st.info(f"Комментарий системы: {auto_comment}")
         else:
-            st.warning(f"Ответ показан, но в таблицу не записался: {msg}")
+            score = 0
+            for i, (_, _, correct) in enumerate(TEST_QUESTIONS, start=1):
+                if answers[f"q{i}"] == correct:
+                    score += 1
 
-# ---------- Раздел: ОТКРЫТЫЕ ----------
+            auto_comment = comment_by_score(score)
+
+            payload = {
+                "action": "submit",
+                "name": name.strip(),
+                "klass": klass.strip(),
+                "section": "test",      # важно: test
+                "topic": TEST_TOPIC,
+                "score": score,
+                "auto_comment": auto_comment,
+                **answers
+            }
+
+            ok, msg = post_json(payload)
+            if ok:
+                st.success(f"Готово! Балл: {score}/10")
+                st.info(f"Комментарий системы: {auto_comment}")
+            else:
+                st.warning(f"Ответ показан, но в таблицу не записался: {msg}")
+
+# ---------------- РАЗДЕЛ: ОТКРЫТЫЕ ----------------
 else:
     st.header("🟩 Раздел: ОТКРЫТЫЕ ВОПРОСЫ")
     st.caption(f"Тема: {OPEN_TOPIC} | 10 вопросов = 10 баллов (простая автооценка)")
@@ -223,30 +248,29 @@ else:
     if st.button("✅ Отправить ответы (ОТКРЫТЫЕ)"):
         if not name.strip() or not klass.strip():
             st.error("Заполни ФИО и класс.")
-            st.stop()
-
-        score = 0
-        for i in range(10):
-            txt = normalize(answers[f"q{i+1}"])
-            if any(kw in txt for kw in OPEN_KEYWORDS[i]):
-                score += 1
-
-        auto_comment = comment_by_score(score) + " (Открытые ответы: предварительная автооценка.)"
-
-        payload = {
-            "action": "submit",
-            "name": name.strip(),
-            "klass": klass.strip(),
-            "section": "open",
-            "topic": OPEN_TOPIC,
-            "score": score,
-            "auto_comment": auto_comment,
-            **answers
-        }
-
-        ok, msg = send_submit(payload)
-        if ok:
-            st.success(f"Готово! Предварительный балл: {score}/10")
-            st.info(f"Комментарий системы: {auto_comment}")
         else:
-            st.warning(f"Ответ показан, но в таблицу не записался: {msg}")
+            score = 0
+            for i in range(10):
+                txt = normalize(answers[f"q{i+1}"])
+                if any(kw in txt for kw in OPEN_KEYWORDS[i]):
+                    score += 1
+
+            auto_comment = comment_by_score(score) + " (Открытые ответы: предварительная автооценка.)"
+
+            payload = {
+                "action": "submit",
+                "name": name.strip(),
+                "klass": klass.strip(),
+                "section": "open",      # важно: open
+                "topic": OPEN_TOPIC,
+                "score": score,
+                "auto_comment": auto_comment,
+                **answers
+            }
+
+            ok, msg = post_json(payload)
+            if ok:
+                st.success(f"Готово! Предварительный балл: {score}/10")
+                st.info(f"Комментарий системы: {auto_comment}")
+            else:
+                st.warning(f"Ответ показан, но в таблицу не записался: {msg}")
