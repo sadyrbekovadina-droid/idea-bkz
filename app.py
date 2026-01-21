@@ -5,7 +5,7 @@ from datetime import datetime
 # =============================
 # 1) ВСТАВЬ СВОЮ ССЫЛКУ APPS SCRIPT
 # =============================
-SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxI233LLqpJV1AhaeYZsnihmsp3i_OyGGHZDUvGKzcz-Q7DRSL7zvlYDBRpdUmCaQes/exec"
+SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwRbvRnuvqkKx80kaYTT9f5G1ba8G97zq9qITe3MTJ0Z-Gmj9FO_tuBg1COQ-0Oy-dL/exec"
 
 APP_TITLE = "Idea.bkz"
 APP_SUBTITLE = "Платформа заданий и обратной связи (7 класс)"
@@ -316,3 +316,4 @@ if st.session_state.page == "open":
     st.divider()
     if st.button("⬅️ Назад "):
         st.session_state.page = "home"
+
